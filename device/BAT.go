@@ -11,6 +11,7 @@ type BAT struct {
 	name     string
 	commands map[string]core.CommandHandler
 
+	//todo убрать регистры и перейти на поля структуры
 	register map[string]any
 	mu       sync.Mutex
 }
