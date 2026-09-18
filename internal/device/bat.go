@@ -1,7 +1,7 @@
 package device
 
 import (
-	core2 "scpi-sim1440/internal/core"
+	"scpi-sim1440/internal/core"
 	"scpi-sim1440/internal/physic"
 	"strconv"
 	"sync"
@@ -18,9 +18,9 @@ type BATConf struct {
 
 type BAT struct {
 	name     string
-	commands map[string]core2.CommandHandler
+	commands map[string]core.CommandHandler
 
-	status     core2.DeviceStatus
+	status     core.DeviceStatus
 	charge     physic.AmpereHour
 	capacity   physic.AmpereHour
 	emptyLevel physic.Volt
@@ -30,9 +30,9 @@ type BAT struct {
 	mu         sync.Mutex
 }
 
-func NewBAT(conf BATConf) core2.Device {
+func NewBAT(conf BATConf) core.Device {
 	device := BAT{
-		status:     core2.StatusIdle,
+		status:     core.StatusIdle,
 		name:       conf.Name,
 		draw:       conf.Draw,
 		capacity:   conf.Capacity,
@@ -41,7 +41,7 @@ func NewBAT(conf BATConf) core2.Device {
 		charge:     conf.Capacity,
 	}
 
-	device.commands = map[string]core2.CommandHandler{
+	device.commands = map[string]core.CommandHandler{
 		"MEAS:CHARGE?": device.Charge,
 		"MEAS:VOLT?":   device.Volt,
 		"MEAS:CURR?":   device.Curr,
@@ -53,19 +53,19 @@ func NewBAT(conf BATConf) core2.Device {
 	return &device
 }
 
-func (b *BAT) Status() core2.DeviceStatus {
+func (b *BAT) Status() core.DeviceStatus {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.status
 }
 
-func (b *BAT) Handle(cmd string) core2.DeviceResponse {
+func (b *BAT) Handle(cmd string) core.DeviceResponse {
 	if res := defaultHandler(cmd, b.name, b.Reset); res != nil {
 		return *res
 	}
 
 	if v, ok := b.commands[cmd]; ok {
-		return core2.DeviceResponse{
+		return core.DeviceResponse{
 			Value: v(),
 		}
 	}
@@ -86,7 +86,7 @@ func (b *BAT) Tick(dt time.Duration) {
 func (b *BAT) Reset() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.status = core2.StatusIdle
+	b.status = core.StatusIdle
 	b.charge = b.capacity
 }
 

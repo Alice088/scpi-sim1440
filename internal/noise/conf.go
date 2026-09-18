@@ -2,9 +2,28 @@ package noise
 
 import "time"
 
+type EffectConf struct {
+	Mode   string
+	N      int
+	T      time.Duration
+	Chance float64
+}
+
 type Conf struct {
-	Delay         time.Duration
-	DropChance    float64
-	GarbageChance float64
-	TimeScale     float64
+	Seed     int64
+	Delay    DelayConf
+	Garbage  EffectConf
+	Drop     EffectConf
+	Break    EffectConf
+	Truncate TruncateConf
+}
+
+type DelayConf struct {
+	EffectConf
+	Value time.Duration
+}
+
+type TruncateConf struct {
+	EffectConf
+	CutAt int
 }
