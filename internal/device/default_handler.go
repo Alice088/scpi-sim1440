@@ -1,8 +1,8 @@
 package device
 
 import (
-	"awesomeProject/core"
 	"errors"
+	"scpi-sim1440/internal/core"
 )
 
 func defaultHandler(cmd, deviceName string, rst func()) *core.DeviceResponse {

@@ -1,4 +1,4 @@
-package main
+package netx
 
 import (
 	"context"
@@ -7,13 +7,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"scpi-sim1440/internal/core"
 	"syscall"
 	"time"
 )
 
-func main() {
+func HandleServer(device core.Device) {
 	srv := http.Server{
-		Addr: ":8080",
+		Addr: ":8080", //todo задавать через конфиг
 	}
 
 	go func() {

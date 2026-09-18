@@ -1,0 +1,14 @@
+devices:
+  - name: bat-1
+    type: bat
+    addr: ":5025"
+    noise:
+      delay: 100ms
+      drop_chance: 0.05
+      garbage_chance: 0.02
+      time_scale: 60
+    params:
+      capacity: 2
+      empty_level: 3
+      full_level: 4.2
+      draw: 1
