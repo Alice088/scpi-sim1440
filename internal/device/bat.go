@@ -2,7 +2,7 @@ package device
 
 import (
 	"scpi-sim1440/internal/core"
-	"scpi-sim1440/internal/physic"
+	"scpi-sim1440/pkg/physic"
 	"strconv"
 	"sync"
 	"time"
