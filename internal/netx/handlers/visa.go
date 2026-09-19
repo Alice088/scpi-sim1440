@@ -15,7 +15,7 @@ type VISAHandler struct {
 	dev core.Device
 }
 
-func (h *VISAHandler) Call(conn net.Conn) {
+func (h *VISAHandler) Handle(conn net.Conn) {
 	defer conn.Close()
 
 	reader := bufio.NewReader(conn)
