@@ -8,6 +8,39 @@
 
 ---
 
+## Прогон: 2026-09-19 15:22 MSK (+0300)
+
+Команда: `go test ./... -count=1`, `go vet ./...`, e2e `/tmp/scpi-manager` (up/up/down/down/up, ручной `docker stop`)
+Ветка: `master`
+Go: `go1.27.1 linux/amd64`
+OR-Tools: не используется
+
+| # | Тест | Пакет | Результат | Время |
+|---|------|-------|-----------|-------|
+| 1 | TestPlanCombinesDelayAndGarbageInDeviceChain | scpi-sim1440/internal/noise | PASS | 0.00s |
+| 2 | TestPlanEmptyChainsAtZeroChance | scpi-sim1440/internal/noise | PASS | 0.00s |
+| 3 | go build ./... | scpi-sim1440 | PASS | 0.90s |
+| 4 | go vet ./... | scpi-sim1440 | PASS | 0.20s |
+| 5 | e2e up: AutoRemove=true, stand IP == 172.30.0.11 | cmd/manager | PASS | 1.00s |
+| 6 | e2e up идемпотентен (already running, skip) | cmd/manager | PASS | 0.20s |
+| 7 | e2e down: контейнер и сеть stand удалены | cmd/manager | PASS | 0.20s |
+| 8 | e2e down повторно (not found игнорируется) | cmd/manager | PASS | 0.10s |
+| 9 | e2e up после down: пересоздание с .11 | cmd/manager | PASS | 1.00s |
+| 10 | e2e ручной docker stop -> авто-удаление контейнера | cmd/manager | PASS | 1.10s |
+
+### Сводка
+
+Всего: 10 / PASS: 10 / FAIL: 0 / SKIP: 0
+Время: 4.90s
+
+### Падения
+
+| Тест | Причина |
+|------|---------|
+| нет | нет |
+
+---
+
 ## Прогон: 2026-09-19 15:04 MSK (+0300)
 
 Команда: `go test ./internal/noise/ -v -count=1`, `go vet ./...`, e2e `/tmp/scpi-manager -action up` + `-action down`

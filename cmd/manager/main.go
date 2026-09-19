@@ -10,7 +10,6 @@ import (
 	"scpi-sim1440/internal/parser"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
@@ -25,7 +24,10 @@ type action = string
 const (
 	ActionUp   action = "up"
 	ActionDown action = "down"
+	ActionWork action = "work"
 )
+
+const busyboxHint = "To call a device, write: nc <ip> <port>"
 
 const (
 	networkName = "stand"
@@ -34,7 +36,7 @@ const (
 )
 
 func main() {
-	rawAction := flag.String("action", "up", "up or down list of devices in docker")
+	rawAction := flag.String("action", "up", "up, down or work in docker")
 	flag.Parse()
 
 	ctx := context.Background()
@@ -47,6 +49,10 @@ func main() {
 	case ActionDown:
 		if err := down(ctx); err != nil {
 			log.Fatalf("down: %v", err)
+		}
+	case ActionWork:
+		if err := work(ctx); err != nil {
+			log.Fatalf("work: %v", err)
 		}
 	default:
 		log.Fatalf("unknown action: %s", *rawAction)
@@ -115,6 +121,20 @@ func down(ctx context.Context) error {
 	return nil
 }
 
+func work(ctx context.Context) error {
+	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-it",
+		"-e", "HINT="+busyboxHint,
+		"--network", networkName,
+		"busybox", "sh", "-c", `printf '%s\n' "$HINT"; exec sh`)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("busybox: %w", err)
+	}
+	return nil
+}
+
 func printSummary(verb string, list []Device) {
 	log.Printf("%s: %d devices\n", verb, len(list))
 	for _, d := range list {
@@ -149,14 +169,16 @@ func RunStand(ctx context.Context, devices []Device) error {
 		insp, err := cli.ContainerInspect(ctx, d.Name)
 		if err == nil && insp.State.Running {
 			log.Printf("%s already running, skip", d.Name)
+			if err := verifyIP(ctx, cli, d); err != nil {
+				return err
+			}
 			continue
 		}
 		if err == nil {
-			log.Printf("%s exists but stopped, starting", d.Name)
-			if err := cli.ContainerStart(ctx, insp.ID, container.StartOptions{}); err != nil {
-				return fmt.Errorf("restart %s: %w", d.Name, err)
+			log.Printf("%s exists but stopped, recreating", d.Name)
+			if err := cli.ContainerRemove(ctx, insp.ID, container.RemoveOptions{Force: true}); err != nil && !isNotFound(err) {
+				return fmt.Errorf("remove stale %s: %w", d.Name, err)
 			}
-			continue
 		}
 
 		resp, err := cli.ContainerCreate(ctx,
@@ -164,12 +186,10 @@ func RunStand(ctx context.Context, devices []Device) error {
 				Image: imageName,
 				Cmd:   d.Args,
 			},
-			&container.HostConfig{AutoRemove: true},
-			&network.NetworkingConfig{
-				EndpointsConfig: map[string]*network.EndpointSettings{
-					networkName: {IPAddress: d.IP},
-				},
+			&container.HostConfig{
+				AutoRemove: true,
 			},
+			nil,
 			nil,
 			d.Name,
 		)
@@ -177,9 +197,34 @@ func RunStand(ctx context.Context, devices []Device) error {
 			return fmt.Errorf("create %s: %w", d.Name, err)
 		}
 
+		if err := cli.NetworkConnect(ctx, networkName, resp.ID, &network.EndpointSettings{
+			IPAMConfig: &network.EndpointIPAMConfig{IPv4Address: d.IP},
+		}); err != nil {
+			return fmt.Errorf("network connect %s: %w", d.Name, err)
+		}
+
 		if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
 			return fmt.Errorf("start %s: %w", d.Name, err)
 		}
+
+		if err := verifyIP(ctx, cli, d); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func verifyIP(ctx context.Context, cli *client.Client, d Device) error {
+	insp, err := cli.ContainerInspect(ctx, d.Name)
+	if err != nil {
+		return fmt.Errorf("inspect %s: %w", d.Name, err)
+	}
+	got := ""
+	if ep, ok := insp.NetworkSettings.Networks[networkName]; ok {
+		got = ep.IPAddress
+	}
+	if got != d.IP {
+		return fmt.Errorf("ip mismatch %s: want %s, got %s", d.Name, d.IP, got)
 	}
 	return nil
 }
@@ -192,12 +237,8 @@ func StopStand(ctx context.Context, devices []Device) error {
 	defer cli.Close()
 
 	for _, d := range devices {
-		_ = cli.ContainerStop(ctx, d.Name, container.StopOptions{})
-		if err := cli.ContainerRemove(ctx, d.Name, container.RemoveOptions{Force: true}); err != nil && !isNotFound(err) && !isInProgress(err) {
-			return fmt.Errorf("remove %s: %w", d.Name, err)
-		}
-		if err := waitGone(ctx, cli, d.Name); err != nil {
-			return fmt.Errorf("wait %s: %w", d.Name, err)
+		if err := cli.ContainerStop(ctx, d.Name, container.StopOptions{}); err != nil && !isNotFound(err) {
+			return fmt.Errorf("stop %s: %w", d.Name, err)
 		}
 	}
 	if err := cli.NetworkRemove(ctx, networkName); err != nil && !isNotFound(err) {
@@ -216,24 +257,4 @@ func isNotFound(err error) bool {
 	}
 	msg := err.Error()
 	return strings.Contains(msg, "not found") || strings.Contains(msg, "No such container")
-}
-
-func isInProgress(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "already in progress")
-}
-
-func waitGone(ctx context.Context, cli *client.Client, name string) error {
-	ticker := time.NewTicker(50 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		if _, err := cli.ContainerInspect(ctx, name); err != nil && isNotFound(err) {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-		}
-	}
 }
