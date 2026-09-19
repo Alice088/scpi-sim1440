@@ -2,7 +2,18 @@ package noise
 
 import "time"
 
+type EffectModeKind = string
+
+const (
+	EffectModeNone      EffectModeKind = ""
+	EffectModeAlways    EffectModeKind = "always"
+	EffectModeOnCommand EffectModeKind = "on_command"
+	EffectModeAfterTime EffectModeKind = "after_time"
+	EffectModeChance    EffectModeKind = "chance"
+)
+
 type EffectConf struct {
+	Name   string
 	Mode   string
 	N      int
 	T      time.Duration
@@ -12,10 +23,10 @@ type EffectConf struct {
 type Conf struct {
 	Seed     int64
 	Delay    DelayConf
-	Garbage  EffectConf
-	Drop     EffectConf
-	Break    EffectConf
 	Truncate TruncateConf
+	Garbage  EffectConf
+	Silence  EffectConf
+	Break    EffectConf
 }
 
 type DelayConf struct {

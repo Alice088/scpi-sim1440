@@ -1,7 +1,10 @@
 package noise
 
 import (
-	"math/rand"
+	"fmt"
+	"hash/fnv"
+	"log"
+	"math"
 	"time"
 )
 
@@ -11,7 +14,6 @@ const (
 	DevNone    DevKind = ""
 	DevDelay   DevKind = "delay"
 	DevGarbage DevKind = "garbage"
-	DevHold    DevKind = "hold"
 )
 
 type DevEffect struct {
@@ -23,6 +25,7 @@ type ConnKind string
 
 const (
 	ConnNone     ConnKind = ""
+	ConnSilence  ConnKind = "silence"
 	ConnBreak    ConnKind = "break"
 	ConnTruncate ConnKind = "truncate"
 )
@@ -44,10 +47,16 @@ type HistoryMoment struct {
 
 type Manager struct {
 	conf      Conf
-	rng       *rand.Rand
 	history   []HistoryMoment
 	cmdCount  int
 	startedAt time.Time
+}
+
+func NewNoiseManager(conf Conf) Manager {
+	return Manager{
+		conf:      conf,
+		startedAt: time.Now(),
+	}
 }
 
 func (m *Manager) Plan() EffectPlan {
@@ -56,16 +65,16 @@ func (m *Manager) Plan() EffectPlan {
 
 	if m.triggered(m.conf.Delay.EffectConf) {
 		plan.Device = &DevEffect{Kind: DevDelay, Delay: m.conf.Delay.Value}
-	}
-	if m.triggered(m.conf.Garbage) {
+	} else if m.triggered(m.conf.Garbage) {
 		plan.Device = &DevEffect{Kind: DevGarbage}
 	}
 
 	if m.triggered(m.conf.Break) {
 		plan.Conn = &ConnEffect{Kind: ConnBreak}
-	}
-	if m.triggered(m.conf.Truncate.EffectConf) {
+	} else if m.triggered(m.conf.Truncate.EffectConf) {
 		plan.Conn = &ConnEffect{Kind: ConnTruncate, CutAt: m.conf.Truncate.CutAt}
+	} else if m.triggered(m.conf.Silence) {
+		plan.Conn = &ConnEffect{Kind: ConnSilence}
 	}
 
 	if plan.Conn != nil || plan.Device != nil {
@@ -80,12 +89,23 @@ func (m *Manager) Plan() EffectPlan {
 
 func (m *Manager) triggered(e EffectConf) bool {
 	switch e.Mode {
-	case "always":
+	case EffectModeAlways:
 		return true
-	case "on_command":
+	case EffectModeOnCommand:
 		return m.cmdCount == e.N
-	case "after_time":
+	case EffectModeAfterTime:
 		return time.Since(m.startedAt) > e.T
+	case EffectModeChance:
+		return m.roll(e.Name) < e.Chance
 	}
 	return false
+}
+
+func (m *Manager) roll(effect string) float64 {
+	pack := fmt.Sprintf("%d:%d:%s", m.conf.Seed, m.cmdCount, effect)
+	h := fnv.New64a()
+	if _, err := fmt.Fprint(h, pack); err != nil {
+		log.Printf("failed roll on %s\n", pack)
+	}
+	return float64(h.Sum64()) / float64(math.MaxUint64)
 }
