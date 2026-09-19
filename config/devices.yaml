@@ -16,7 +16,7 @@ devices:
         chance: 0.05
       break:
         mode: on_command
-        n: 5
+        n: 30
       truncate:
         mode: chance
         chance: 0.05

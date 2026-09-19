@@ -11,7 +11,6 @@ import (
 type DevKind string
 
 const (
-	DevNone    DevKind = ""
 	DevDelay   DevKind = "delay"
 	DevGarbage DevKind = "garbage"
 )
@@ -24,7 +23,6 @@ type DevEffect struct {
 type ConnKind string
 
 const (
-	ConnNone     ConnKind = ""
 	ConnSilence  ConnKind = "silence"
 	ConnBreak    ConnKind = "break"
 	ConnTruncate ConnKind = "truncate"
@@ -35,9 +33,14 @@ type ConnEffect struct {
 	CutAt int
 }
 
+// EffectPlan holds the effect chains for a single command.
+// Device chain runs in fixed order: Delay (sleep), then Garbage (replace value), then Hold (suppress response).
+// Conn chain runs in fixed order: Truncate (cut value), then Break (close after write), then Silence (suppress write).
+// When the chain contains Hold or Silence, no response is written, but the other effects still run.
+// Break and Truncate together: write the truncated value, then close.
 type EffectPlan struct {
-	Device *DevEffect
-	Conn   *ConnEffect
+	Device []DevEffect
+	Conn   []ConnEffect
 }
 
 type HistoryMoment struct {
@@ -64,20 +67,23 @@ func (m *Manager) Plan() EffectPlan {
 	var plan EffectPlan
 
 	if m.triggered(m.conf.Delay.EffectConf) {
-		plan.Device = &DevEffect{Kind: DevDelay, Delay: m.conf.Delay.Value}
-	} else if m.triggered(m.conf.Garbage) {
-		plan.Device = &DevEffect{Kind: DevGarbage}
+		plan.Device = append(plan.Device, DevEffect{Kind: DevDelay, Delay: m.conf.Delay.Value})
+	}
+	if m.triggered(m.conf.Garbage) {
+		plan.Device = append(plan.Device, DevEffect{Kind: DevGarbage})
 	}
 
+	if m.triggered(m.conf.Truncate.EffectConf) {
+		plan.Conn = append(plan.Conn, ConnEffect{Kind: ConnTruncate, CutAt: m.conf.Truncate.CutAt})
+	}
 	if m.triggered(m.conf.Break) {
-		plan.Conn = &ConnEffect{Kind: ConnBreak}
-	} else if m.triggered(m.conf.Truncate.EffectConf) {
-		plan.Conn = &ConnEffect{Kind: ConnTruncate, CutAt: m.conf.Truncate.CutAt}
-	} else if m.triggered(m.conf.Silence) {
-		plan.Conn = &ConnEffect{Kind: ConnSilence}
+		plan.Conn = append(plan.Conn, ConnEffect{Kind: ConnBreak})
+	}
+	if m.triggered(m.conf.Silence) {
+		plan.Conn = append(plan.Conn, ConnEffect{Kind: ConnSilence})
 	}
 
-	if plan.Conn != nil || plan.Device != nil {
+	if len(plan.Conn) > 0 || len(plan.Device) > 0 {
 		m.history = append(m.history, HistoryMoment{
 			commandIndex: m.cmdCount,
 			effect:       plan,
