@@ -8,11 +8,12 @@ import (
 )
 
 type RawDevice struct {
-	Name   string     `yaml:"name"`
-	Type   string     `yaml:"type"`
-	Addr   string     `yaml:"addr"`
-	Noise  noise.Conf `yaml:"noise"`
-	Params yaml.Node  `yaml:"params"`
+	Name      string     `yaml:"name"`
+	Type      string     `yaml:"type"`
+	Addr      string     `yaml:"addr"`
+	TimeScale float64    `yaml:"time_scale"`
+	Noise     noise.Conf `yaml:"noise"`
+	Params    yaml.Node  `yaml:"params"`
 }
 
 type Config struct {

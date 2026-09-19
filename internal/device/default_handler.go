@@ -12,7 +12,7 @@ func defaultHandler(cmd, deviceName string, rst func()) *core.DeviceResponse {
 		return &core.DeviceResponse{
 			Value: core.OK,
 		}
-	case "*IDN":
+	case "*IDN?":
 		return &core.DeviceResponse{
 			Value: deviceName,
 		}

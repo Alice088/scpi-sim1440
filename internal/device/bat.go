@@ -93,7 +93,7 @@ func (b *BAT) Reset() {
 func (b *BAT) Charge() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return strconv.FormatFloat(b.charge, 'f', -1, 64)
+	return strconv.FormatFloat(b.charge, 'f', 2, 64)
 }
 
 func (b *BAT) Volt() string {
@@ -101,11 +101,11 @@ func (b *BAT) Volt() string {
 	defer b.mu.Unlock()
 	soc := b.charge / b.capacity
 	v := b.emptyLevel + soc*(b.fullLevel-b.emptyLevel)
-	return strconv.FormatFloat(v, 'f', -1, 64)
+	return strconv.FormatFloat(v, 'f', 2, 64)
 }
 
 func (b *BAT) Curr() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return strconv.FormatFloat(b.draw, 'f', -1, 64)
+	return strconv.FormatFloat(b.draw, 'f', 2, 64)
 }

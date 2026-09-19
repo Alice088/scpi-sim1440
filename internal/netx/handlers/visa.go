@@ -15,8 +15,19 @@ type VISAHandler struct {
 	dev core.Device
 }
 
+func NewVISAHandler(mng *noise.Manager, dev core.Device) VISAHandler {
+	return VISAHandler{
+		mng: mng,
+		dev: dev,
+	}
+}
+
 func (h *VISAHandler) Handle(conn net.Conn) {
 	defer conn.Close()
+
+	if err := conn.SetReadDeadline(time.Now().Add(5 * time.Minute)); err != nil {
+		return
+	}
 
 	reader := bufio.NewReader(conn)
 
@@ -25,6 +36,7 @@ func (h *VISAHandler) Handle(conn net.Conn) {
 		if err != nil {
 			return
 		}
+		_ = conn.SetReadDeadline(time.Now().Add(5 * time.Minute))
 		cmd = strings.TrimSpace(cmd)
 
 		plan := h.mng.Plan()
@@ -34,6 +46,7 @@ func (h *VISAHandler) Handle(conn net.Conn) {
 			switch plan.Device.Kind {
 			case noise.DevDelay:
 				time.Sleep(plan.Device.Delay)
+				fallthrough
 			case noise.DevGarbage:
 				resp.Value = "�#@%$"
 			}
